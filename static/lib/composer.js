@@ -735,6 +735,10 @@ define('composer', [
 		if (visibilityInput.length && visibilityInput.val()) {
 			try {
 				visibleTo = JSON.parse(visibilityInput.val());
+				// If empty array, default to public ('all')
+				if (Array.isArray(visibleTo) && visibleTo.length === 0) {
+					visibleTo = ['all'];
+				}
 				console.log('[FRONTEND] ✅ Parsed visibleTo:', visibleTo);
 			} catch (e) {
 				console.warn('[FRONTEND] ❌ Failed to parse visibleTo value:', visibilityInput.val(), 'Error:', e);

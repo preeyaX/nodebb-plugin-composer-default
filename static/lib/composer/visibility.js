@@ -16,7 +16,7 @@ define('composer/visibility', ['api', 'alerts'], function (api, alerts) {
 		var selectedCount = button.find('.selected-count');
 		var hiddenInput = visibilityContainer.find('.visibility-input');
 
-		var selectedGroups = ['all']; // Default to public
+		var selectedGroups = []; // Default to empty (will default to 'all' when posting)
 		var availableGroups = [];
 
 		// Load available groups
@@ -83,11 +83,7 @@ define('composer/visibility', ['api', 'alerts'], function (api, alerts) {
 				selectedGroups.push($(this).val());
 			});
 
-			// If no groups selected, default to public
-			if (selectedGroups.length === 0) {
-				selectedGroups = ['all'];
-				menu.find('input[value="all"]').prop('checked', true);
-			}
+			// If no groups selected, keep empty array (will default to 'all' when posting)
 
 			// Update UI
 			updateButtonText();
@@ -98,7 +94,9 @@ define('composer/visibility', ['api', 'alerts'], function (api, alerts) {
 			var count = selectedGroups.length;
 			selectedCount.text(count);
 
-			if (count === 1) {
+            if (count === 0) {
+                selectedText.text('Everyone (Public)');
+            } else if (count === 1) {
 				var group = availableGroups.find(function (g) {
 					return g.name === selectedGroups[0];
 				});
