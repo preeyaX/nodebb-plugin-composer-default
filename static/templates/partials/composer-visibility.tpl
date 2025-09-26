@@ -12,7 +12,7 @@
 						type="button"
 						data-bs-toggle="dropdown"
 						aria-expanded="false">
-					<span class="selected-text">Loading...</span>
+					<span class="selected-text">Everyone (Public)</span>
 					<span class="badge bg-primary ms-2 selected-count">0</span>
 				</button>
 				<ul class="dropdown-menu p-2" style="min-width: 300px; max-height: 300px; overflow-y: auto;">
@@ -23,7 +23,7 @@
 					</li>
 				</ul>
 			</div>
-			<input type="hidden" name="visibleTo" class="visibility-input" value='["all"]'>
+			<input type="hidden" name="visibleTo" class="visibility-input" value='[]'>
 		</div>
 	</div>
 </div>
