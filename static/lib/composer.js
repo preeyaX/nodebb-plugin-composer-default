@@ -13,6 +13,7 @@ define('composer', [
 	'composer/autocomplete',
 	'composer/scheduler',
 	'composer/post-queue',
+	'./composer/visibility',
 	'scrollStop',
 	'topicThumbs',
 	'api',
@@ -23,7 +24,7 @@ define('composer', [
 	'search',
 	'screenfull',
 ], function (taskbar, translator, uploads, formatting, drafts, tags,
-	categoryList, preview, resize, autocomplete, scheduler, postQueue, scrollStop,
+	categoryList, preview, resize, autocomplete, scheduler, postQueue, visibility, scrollStop,
 	topicThumbs, api, bootbox, alerts, hooks, messagesModule, search, screenfull) {
 	var composer = {
 		active: undefined,
@@ -201,7 +202,6 @@ define('composer', [
 			title: data.title || '',
 			body: data.body || '',
 			tags: data.tags || [],
-			thumbs: data.thumbs || [],
 			modified: !!((data.title && data.title.length) || (data.body && data.body.length)),
 			isMain: true,
 		};
@@ -347,6 +347,7 @@ define('composer', [
 		postQueue.showAlert(postContainer, postData);
 		uploads.initialize(post_uuid);
 		tags.init(postContainer, composer.posts[post_uuid]);
+		visibility.init(postContainer, composer.posts[post_uuid]);
 		autocomplete.init(postContainer, post_uuid);
 
 		postContainer.on('change', 'input, textarea', function () {
@@ -418,7 +419,7 @@ define('composer', [
 		handleHelp(postContainer);
 		handleSearch(postContainer);
 		focusElements(postContainer);
-		if (postData.action === 'posts.edit' || postData.action === 'topics.post') {
+		if (postData.action === 'posts.edit') {
 			composer.updateThumbCount(post_uuid, postContainer);
 		}
 
@@ -460,11 +461,10 @@ define('composer', [
 		var title = postData.title.replace(/%/g, '&#37;').replace(/,/g, '&#44;');
 		postData.category = await getSelectedCategory(postData);
 		const privileges = postData.category ? postData.category.privileges : ajaxify.data.privileges;
-		const topicTemplate = isTopic && postData.category ? postData.category.topicTemplate : null;
 		var data = {
 			topicTitle: title,
 			titleLength: title.length,
-			body: translator.escape(utils.escapeHTML(topicTemplate || postData.body)),
+			body: translator.escape(utils.escapeHTML(postData.body)),
 			mobile: composer.bsEnvironment === 'xs' || composer.bsEnvironment === 'sm',
 			resizable: true,
 			thumb: postData.thumb,
@@ -728,6 +728,22 @@ define('composer', [
 		let method = 'post';
 		let route = '';
 
+		// Get visibility selection
+		var visibilityInput = postContainer.find('.visibility-input');
+		var visibleTo = ['all']; // default to public
+		console.log('[FRONTEND] 🔍 Visibility Input Found:', visibilityInput.length > 0, 'Value:', visibilityInput.val());
+		if (visibilityInput.length && visibilityInput.val()) {
+			try {
+				visibleTo = JSON.parse(visibilityInput.val());
+				console.log('[FRONTEND] ✅ Parsed visibleTo:', visibleTo);
+			} catch (e) {
+				console.warn('[FRONTEND] ❌ Failed to parse visibleTo value:', visibilityInput.val(), 'Error:', e);
+				visibleTo = ['all'];
+			}
+		} else {
+			console.log('[FRONTEND] 🔒 No visibility input found or empty, using default:', visibleTo);
+		}
+
 		if (action === 'topics.post') {
 			route = '/topics';
 			composerData = {
@@ -738,9 +754,17 @@ define('composer', [
 				thumb: thumbEl.val() || '',
 				cid: categoryList.getSelectedCid(),
 				tags: tags.getTags(post_uuid),
-				thumbs: postData.thumbs || [],
 				timestamp: scheduler.getTimestamp(),
+				visibleTo: visibleTo,
 			};
+			console.log('[FRONTEND] 📝 New Topic Data Collected:', {
+				title: composerData.title,
+				content: composerData.content?.substring(0, 100) + '...',
+				cid: composerData.cid,
+				visibleTo: composerData.visibleTo,
+				tags: composerData.tags,
+				route: route
+			});
 		} else if (action === 'posts.reply') {
 			route = `/topics/${postData.tid}`;
 			composerData = {
@@ -749,7 +773,15 @@ define('composer', [
 				handle: handleEl ? handleEl.val() : undefined,
 				content: bodyEl.val(),
 				toPid: postData.toPid,
+				visibleTo: visibleTo,
 			};
+			console.log('[FRONTEND] 💬 Reply Data Collected:', {
+				tid: composerData.tid,
+				content: composerData.content?.substring(0, 100) + '...',
+				toPid: composerData.toPid,
+				visibleTo: composerData.visibleTo,
+				route: route
+			});
 		} else if (action === 'posts.edit') {
 			method = 'put';
 			route = `/posts/${encodeURIComponent(postData.pid)}`;
@@ -759,7 +791,7 @@ define('composer', [
 				handle: handleEl ? handleEl.val() : undefined,
 				content: bodyEl.val(),
 				title: titleEl.val(),
-				thumbs: postData.thumbs || [],
+				thumb: thumbEl.val() || '',
 				tags: tags.getTags(post_uuid),
 				timestamp: scheduler.getTimestamp(),
 			};
@@ -782,8 +814,21 @@ define('composer', [
 		composer.minimize(post_uuid);
 		textareaEl.prop('readonly', true);
 
+		console.log('[FRONTEND] 🚀 Sending API Request:', {
+			method: method,
+			route: route,
+			dataKeys: Object.keys(composerData),
+			visibleTo: composerData.visibleTo
+		});
+
 		api[method](route, composerData)
 			.then((data) => {
+				console.log('[FRONTEND] ✅ API Response Received:', {
+					success: true,
+					queued: data.queued,
+					dataKeys: Object.keys(data || {}),
+					action: action
+				});
 				submitBtn.removeAttr('disabled');
 				postData.submitted = true;
 
@@ -820,6 +865,12 @@ define('composer', [
 				hooks.fire('action:composer.' + action, { composerData: composerData, data: data });
 			})
 			.catch((err) => {
+				console.error('[FRONTEND] ❌ API Request Failed:', {
+					error: err.message || err,
+					method: method,
+					route: route,
+					action: action
+				});
 				// Restore composer on error
 				composer.load(post_uuid);
 				textareaEl.prop('readonly', false);
@@ -886,12 +937,20 @@ define('composer', [
 
 	composer.updateThumbCount = function (uuid, postContainer) {
 		const composerObj = composer.posts[uuid];
-		if (composerObj && (composerObj.action === 'topics.post' || (composerObj.action === 'posts.edit' && composerObj.isMain))) {
-			const thumbCount = composerObj.thumbs ? composerObj.thumbs.length : 0;
-			const formatEl = postContainer.find('[data-format="thumbs"]');
-			formatEl.find('.badge')
-				.text(thumbCount)
-				.toggleClass('hidden', !thumbCount);
+		if (composerObj.action === 'topics.post' || (composerObj.action === 'posts.edit' && composerObj.isMain)) {
+			const calls = [
+				topicThumbs.get(uuid),
+			];
+			if (composerObj.pid) {
+				calls.push(topicThumbs.getByPid(composerObj.pid));
+			}
+			Promise.all(calls).then((thumbs) => {
+				const thumbCount = thumbs.flat().length;
+				const formatEl = postContainer.find('[data-format="thumbs"]');
+				formatEl.find('.badge')
+					.text(thumbCount)
+					.toggleClass('hidden', !thumbCount);
+			});
 		}
 	};
 
