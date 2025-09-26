@@ -24,6 +24,8 @@
 		<div class="p-2 d-flex flex-column gap-1 h-100">
 			<!-- IMPORT partials/composer-title-container.tpl -->
 
+			<!-- IMPORT partials/composer-visibility.tpl -->
+
 			<!-- IMPORT partials/composer-formatting.tpl -->
 
 			<!-- IMPORT partials/composer-write-preview.tpl -->

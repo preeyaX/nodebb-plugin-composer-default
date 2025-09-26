@@ -16,6 +16,8 @@
 
 		<!-- IMPORT partials/composer-title-container.tpl -->
 
+		<!-- IMPORT partials/composer-visibility.tpl -->
+
 		<!-- IMPORT partials/composer-formatting.tpl -->
 
 		<!-- IMPORT partials/composer-write-preview.tpl -->
